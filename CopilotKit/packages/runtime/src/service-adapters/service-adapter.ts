@@ -16,11 +16,13 @@ export interface CopilotRuntimeChatCompletionRequest {
   threadId?: string;
   runId?: string;
   forwardedParameters?: ForwardedParametersInput;
+  onBeforeRequest?: (value: any) => void | Promise<void>;
 }
 
 export interface CopilotRuntimeChatCompletionResponse {
   threadId: string;
   runId?: string;
+  response?: any;
 }
 
 export interface CopilotServiceAdapter {

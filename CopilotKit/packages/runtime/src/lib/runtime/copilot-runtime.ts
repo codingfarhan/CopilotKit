@@ -75,6 +75,7 @@ interface OnAfterRequestOptions {
   outputMessages: Message[];
   properties: any;
   url?: string;
+  requestData?: any;
 }
 
 type OnAfterRequestHandler = (options: OnAfterRequestOptions) => void | Promise<void>;
@@ -187,14 +188,6 @@ export class CopilotRuntime<const T extends Parameter[] | [] = []> {
       ...clientSideActionsInput,
     ]);
 
-    await this.onBeforeRequest?.({
-      threadId,
-      runId,
-      inputMessages,
-      properties: graphqlContext.properties,
-      url,
-    });
-
     try {
       const eventSource = new RuntimeEventSource();
 
@@ -205,6 +198,8 @@ export class CopilotRuntime<const T extends Parameter[] | [] = []> {
         runId,
         eventSource,
         forwardedParameters,
+        // instead of calling onBeforeRequest inside in this file, we are going to execute it right before calling the OpenAI endpoint to output the values before the request is sent.
+        onBeforeRequest: this.onBeforeRequest,
       });
 
       outputMessagesPromise
@@ -212,6 +207,10 @@ export class CopilotRuntime<const T extends Parameter[] | [] = []> {
           this.onAfterRequest?.({
             threadId: result.threadId,
             runId: result.runId,
+            requestData: {
+              ...{ status: "Response Received!" },
+              ...{ data: result?.response?.join("") },
+            },
             inputMessages,
             outputMessages,
             properties: graphqlContext.properties,

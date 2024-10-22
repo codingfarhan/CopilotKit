@@ -84,6 +84,7 @@ export class OpenAIAdapter implements CopilotServiceAdapter {
       actions,
       eventSource,
       forwardedParameters,
+      onBeforeRequest,
     } = request;
     const tools = actions.map(convertActionInputToOpenAITool);
 
@@ -98,6 +99,22 @@ export class OpenAIAdapter implements CopilotServiceAdapter {
       };
     }
 
+    const requestData = {
+      model: model,
+      stream: true,
+      messages: openaiMessages,
+      ...(tools.length > 0 && { tools }),
+      ...(forwardedParameters?.maxTokens && { max_tokens: forwardedParameters.maxTokens }),
+      ...(forwardedParameters?.stop && { stop: forwardedParameters.stop }),
+      ...(toolChoice && { tool_choice: toolChoice }),
+      ...(this.disableParallelToolCalls && { parallel_tool_calls: false }),
+    };
+
+    await onBeforeRequest?.({
+      ...{ status: "Sending Request..." },
+      ...{ data: JSON.stringify(requestData) },
+    });
+
     const stream = this.openai.beta.chat.completions.stream({
       model: model,
       stream: true,
@@ -109,11 +126,15 @@ export class OpenAIAdapter implements CopilotServiceAdapter {
       ...(this.disableParallelToolCalls && { parallel_tool_calls: false }),
     });
 
+    let chunks = [];
+
     eventSource.stream(async (eventStream$) => {
       let mode: "function" | "message" | null = null;
       for await (const chunk of stream) {
         const toolCall = chunk.choices[0].delta.tool_calls?.[0];
         const content = chunk.choices[0].delta.content;
+
+        chunks.push(JSON.stringify(chunk));
 
         // When switching from message to function or vice versa,
         // send the respective end event.
@@ -157,6 +178,7 @@ export class OpenAIAdapter implements CopilotServiceAdapter {
 
     return {
       threadId: threadId || randomId(),
+      response: chunks,
     };
   }
 }
